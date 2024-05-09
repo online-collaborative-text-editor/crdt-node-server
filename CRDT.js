@@ -1,111 +1,130 @@
-// // In the NODE class we define the following attributes:
-// // position: the largest float number available in JavaScript; it represents the position of the node in the CRDT array.
-// // flags indicating the formating of the letter stored in the node (bold & italic)
-// // letter: the letter stored in the node
-// // Tomstone: a boolean value indicating if the node has been deleted
-
-// // The CDRDT class is a list of nodes. It has the following attributes
-// // It is initialized with two nodes, the first and the last node of the list
-// // The first is initialized with the smallest float number available in JavaScript 10e-37
-// // The last is initialized with the largest float number available in JavaScript 10e37
-
-// // The class has the following methods:
-// // insert: inserts a new node in the list given its position
-// // delete: deletes a node given its position
-// class Node {
-//     constructor(position, letter, bold = false, italic = false, tombstone = false) {
-//         this.position = position;
-//         this.letter = letter;
-//         this.bold = bold;
-//         this.italic = italic;
-//         this.tombstone = tombstone;
-//     }
-// }
-
-// class CRDT {
-//     constructor() {
-//         this.nodes = [new Node(Number.MIN_VALUE, ''), new Node(Number.MAX_VALUE, '')];
-//     }
-
-//     insert(node) {
-//         // The splice() method changes the contents of an array by removing or replacing
-//         // existing elements and/or adding new elements in place.
-//         // Here, it's used to insert the new node at the correct position in the nodes array.
-//         // The first argument to splice() is the index at which to start changing the array.
-//         // The second argument is the number of elements in the array to remove from the start index.
-//         // In this case, we're not removing any elements, so it's 0.
-//         // The remaining arguments are the elements to add to the array, starting from the start index.
-//         // Here, we're adding the new node to the array.
-//         this.nodes.splice(this.findPosition(node.position), 0, node);
-//     }
-
-//     delete(node) {
-//         let index = this.findPosition(node.position);
-//         if (index !== -1) {
-//             this.nodes[index].tombstone = true;
-//         }
-//     }
-
-//     findPosition(position) {
-//         for (let i = 0; i < this.nodes.length; i++) {
-//             if (this.nodes[i].position > position) {
-//                 return i;
-//             }
-//         }
-//         return -1;
-//     }
-
-//     cleanup() {
-//         // The filter() method creates a new array with all elements that pass the test implemented by the provided function.
-//         // Here, it's used to create a new array that only includes nodes where tombstone is false.
-//         this.nodes = this.nodes.filter(node => !node.tombstone);
-//     }
-// }
-
-
-import { PriorityQueue } from 'priorityqueuejs';
-
 class Node {
-    constructor(position, letter, bold = false, italic = false, tombstone = false) {
-        this.position = position;
+    constructor(letter,  position = -1, bold = false, italic = false, tombstone = false) {
         this.letter = letter;
+        this.position = position;
         this.bold = bold;
         this.italic = italic;
         this.tombstone = tombstone;
-        this.timestamp = Date.now();
     }
 }
 
 class CRDT {
     constructor() {
-        this.nodes = new PriorityQueue();
-        this.nodes.enqueue(new Node(Number.MIN_VALUE, ''));
-        this.nodes.enqueue(new Node(Number.MAX_VALUE, ''));
+        // this.nodes = [new Node(Number.MIN_VALUE, ''), new Node(Number.MAX_VALUE, '')];
+        this.nodes = [new Node('', 0), new Node('', 10)];
     }
 
-    insert(node) {
-        this.nodes.enqueue(node);
+    // When the server receives an insert event from a client, it inserts the node into the CRDT instance
+    // When a client receives an insert event from the server, it inserts the node into the CRDT instance, it then calculates the display index from the position and displays the node at that index
+    insertPosition(node) {
+        let arrayIndex = this.positionToArrayIndex(node.position);
+        this.nodes.splice(arrayIndex, 0, node);
     }
 
-    delete(node) {
-        let index = this.findPosition(node.position);
-        if (index !== -1) {
-            this.nodes.update(node, { tombstone: true });
-        }
+    // When the server receives a delete event from a client, it deletes the node from the CRDT instance
+    // When a client receives a delete event from the server, it deletes the node from the CRDT instance, it then searches for the display index of the node and deletes the node at that index
+    deletePosition(node) {
+        let arrayIndex = this.positionToArrayIndex(node.position);
+        this.nodes[arrayIndex].tombstone = true;
     }
 
-    findPosition(position) {
-        let index = -1;
-        this.nodes.forEach((node, i) => {
-            if (node.position > position) {
-                index = i;
-                return false; // Stop iterating
-            }
-        });
-        return index;
+    // When the client inserts a node, it calculates the position from the display index and inserts the node into the CRDT instance
+    insertDisplayIndex(node, displayIndex) {
+        let position = this.calculate_DisplayIndexToPosition(displayIndex);
+        node.position = position;
+        
+        this.insertPosition(node);
     }
 
-    cleanup() {
+    // When the client deletes a node, it searches for the display index of the node and deletes the node at that index
+    deleteDisplayIndex(displayIndex) {
+        let position = this.get_DisplayIndexToPosition(displayIndex);
+        let arrayIndex = this.positionToArrayIndex(position);
+
+        this.nodes[arrayIndex].tombstone = true;
+    }
+
+    cleanUp() {
         this.nodes = this.nodes.filter(node => !node.tombstone);
     }
+
+    ////////////////////////////////////////////////////// Helper Functions /////////////////////////////////////////////////////////////////////
+
+    positionToArrayIndex(position) {
+        return this.nodes.findIndex(node => node.position === position);
+    }
+
+    // Convert between displayIndex and position
+    // Iterate over the array and skip over the tombstones = true nodes, when you reach the display index, find the average between the current and next position
+    calculate_DisplayIndexToPosition(displayIndex) {
+        let count = 0;
+        for (let node of this.nodes) {
+            if (!node.tombstone) {
+                if (count === displayIndex) {
+                    return (node.position + this.nodes[this.nodes.indexOf(node) + 1].position) / 2;
+                }
+                count++;
+            }
+        }
+        return -1; // Invalid displayIndex
+    }
+
+    get_DisplayIndexToPosition(displayIndex) {
+        let count = 0;
+        for (let node of this.nodes) {
+            if (!node.tombstone) {
+                if (count === displayIndex) {
+                    return node.position;
+                }
+                count++;
+            }
+        }
+        return -1; // Invalid displayIndex
+    }
 }
+
+function testCRDT() {
+    // Create a new CRDT instance
+    let crdt_server = new CRDT();
+    let crdt_client = new CRDT();
+
+    // The client wrote a letter 'a' at display index 0
+    // He stored it in his own CRDT instance
+    let node = new Node('a');
+    crdt_client.insertDisplayIndex(node, 0);
+    console.assert(crdt_client.nodes[1].letter === 'a', 'Client insertDisplayIndex failed');
+    
+    // He sent the node to the server
+    // The server stored the node in its own CRDT instance
+    crdt_server.insertPosition(node);
+    console.assert(crdt_server.nodes[1].letter === 'a', 'Server insertPosition failed');
+    
+    // The server broadcasted the node to all other clients
+    // The other clients stored the node in their own CRDT instances
+    // The other clients displayed the node at the display index calculated from the position
+    let displayIndex = crdt_client.positionToArrayIndex(node.position);
+    crdt_client.insertDisplayIndex(node, displayIndex);
+    console.assert(crdt_client.nodes[1].letter === 'a', 'Client insertDisplayIndex failed');
+    
+    // A client deleted the node
+    crdt_client.deleteDisplayIndex(displayIndex);
+    console.assert(crdt_client.nodes[1].tombstone === true, 'Client deleteDisplayIndex failed');
+    
+    // The client sent the delete event to the server
+    // The server stored the delete event in its own CRDT instance
+    crdt_server.deletePosition(node);
+    console.assert(crdt_server.nodes[1].tombstone === true, 'Server deletePosition failed');
+    
+    // The server broadcasted the delete event to all other clients
+    // The other clients stored the delete event in their own CRDT instances
+    // The other clients deleted the node from their own CRDT instances
+    // The other clients displayed the delete event at the display index calculated from the position
+    crdt_client.deletePosition(node);
+    console.assert(crdt_client.nodes[1].tombstone === true, 'Client deletePosition failed');
+
+    // Cleanup the CRDT
+    crdt_server.cleanUp();
+    console.assert(crdt_server.nodes.length === 2, 'Server cleanUp failed');
+}
+
+testCRDT();

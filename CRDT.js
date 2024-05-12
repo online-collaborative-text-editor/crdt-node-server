@@ -1,5 +1,5 @@
 class Node {
-    constructor(letter,  position = -1, bold = false, italic = false, tombstone = false) {
+    constructor(letter, position = -1, bold = false, italic = false, tombstone = false) {
         this.letter = letter;
         this.position = position;
         this.bold = bold;
@@ -32,7 +32,7 @@ class CRDT {
     insertDisplayIndex(node, displayIndex) {
         let position = this.calculate_DisplayIndexToPosition(displayIndex);
         node.position = position;
-        
+
         this.insertPosition(node);
     }
 
@@ -93,28 +93,28 @@ function testCRDT() {
     let node = new Node('a');
     crdt_client.insertDisplayIndex(node, 0);
     console.assert(crdt_client.nodes[1].letter === 'a', 'Client insertDisplayIndex failed');
-    
+
     // He sent the node to the server
     // The server stored the node in its own CRDT instance
     crdt_server.insertPosition(node);
     console.assert(crdt_server.nodes[1].letter === 'a', 'Server insertPosition failed');
-    
+
     // The server broadcasted the node to all other clients
     // The other clients stored the node in their own CRDT instances
     // The other clients displayed the node at the display index calculated from the position
     let displayIndex = crdt_client.positionToArrayIndex(node.position);
     crdt_client.insertDisplayIndex(node, displayIndex);
     console.assert(crdt_client.nodes[1].letter === 'a', 'Client insertDisplayIndex failed');
-    
+
     // A client deleted the node
     crdt_client.deleteDisplayIndex(displayIndex);
     console.assert(crdt_client.nodes[1].tombstone === true, 'Client deleteDisplayIndex failed');
-    
+
     // The client sent the delete event to the server
     // The server stored the delete event in its own CRDT instance
     crdt_server.deletePosition(node);
     console.assert(crdt_server.nodes[1].tombstone === true, 'Server deletePosition failed');
-    
+
     // The server broadcasted the delete event to all other clients
     // The other clients stored the delete event in their own CRDT instances
     // The other clients deleted the node from their own CRDT instances
@@ -127,4 +127,5 @@ function testCRDT() {
     console.assert(crdt_server.nodes.length === 2, 'Server cleanUp failed');
 }
 
-testCRDT();
+// testCRDT(); 
+export { CRDT, Node };

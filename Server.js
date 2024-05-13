@@ -1,5 +1,3 @@
-
-
 class Node {
     constructor(letter, position = -1, bold = false, italic = false, tombstone = false) {
         this.letter = letter;
@@ -53,7 +51,7 @@ class CRDT {
     ////////////////////////////////////////////////////// Helper Functions /////////////////////////////////////////////////////////////////////
 
     positionToArrayIndex(position) {
-        return this.nodes.findIndex(node => node.position === position);
+        return this.nodes.findIndex(node => node.position > position);
     }
 
     // Convert between displayIndex and position
@@ -85,74 +83,17 @@ class CRDT {
     }
 }
 
-function testCRDT() {
-    // Create a new CRDT instance
-    let crdt_server = new CRDT();
-    let crdt_client = new CRDT();
-
-    // The client wrote a letter 'a' at display index 0
-    // He stored it in his own CRDT instance
-    let node = new Node('a');
-    crdt_client.insertDisplayIndex(node, 0);
-    console.assert(crdt_client.nodes[1].letter === 'a', 'Client insertDisplayIndex failed');
-
-    // He sent the node to the server
-    // The server stored the node in its own CRDT instance
-    crdt_server.insertPosition(node);
-    console.assert(crdt_server.nodes[1].letter === 'a', 'Server insertPosition failed');
-
-    // The server broadcasted the node to all other clients
-    // The other clients stored the node in their own CRDT instances
-    // The other clients displayed the node at the display index calculated from the position
-    let displayIndex = crdt_client.positionToArrayIndex(node.position);
-    crdt_client.insertDisplayIndex(node, displayIndex);
-    console.assert(crdt_client.nodes[1].letter === 'a', 'Client insertDisplayIndex failed');
-
-    // A client deleted the node
-    crdt_client.deleteDisplayIndex(displayIndex);
-    console.assert(crdt_client.nodes[1].tombstone === true, 'Client deleteDisplayIndex failed');
-
-    // The client sent the delete event to the server
-    // The server stored the delete event in its own CRDT instance
-    crdt_server.deletePosition(node);
-    console.assert(crdt_server.nodes[1].tombstone === true, 'Server deletePosition failed');
-
-    // The server broadcasted the delete event to all other clients
-    // The other clients stored the delete event in their own CRDT instances
-    // The other clients deleted the node from their own CRDT instances
-    // The other clients displayed the delete event at the display index calculated from the position
-    crdt_client.deletePosition(node);
-    console.assert(crdt_client.nodes[1].tombstone === true, 'Client deletePosition failed');
-
-    // Cleanup the CRDT
-    crdt_server.cleanUp();
-    console.assert(crdt_server.nodes.length === 2, 'Server cleanUp failed');
-}
-
-
-
-
-
-
-
-
 const express = require("express");
 const http = require("http");
-
 const Server = require("socket.io").Server;
-
-
 
 // Application and servers initialization
 const app = express();
-
 const server = http.createServer(app);
-
 const port = 5000;
 
-server.listen(port, () => {
-    console.log("Server is Up on port " + port);
-});
+// Middleware to parse JSON bodies
+app.use(express.json());
 
 const io = new Server(server, {
     path: "/socket.io",
@@ -160,7 +101,6 @@ const io = new Server(server, {
         origin: "*"
     },
 });
-
 
 // This map stores a CRDT instance for each document.
 const documentCRDTs = new Map();
@@ -187,46 +127,34 @@ io.on("connection", async (socket) => {
     // If there's no CRDT for this document yet, create one.
     if (!documentCRDTs.has(docId)) {
         documentCRDTs.set(docId, new CRDT());
-        console.log("documentCRDTs", documentCRDTs);
         // After conncting to the db, handling this condition should be retrieving the CRDT from the database.
     }
 
     // Get the CRDT for this document.
     const crdt = documentCRDTs.get(docId);
-    console.log("crdt", crdt);
 
     // Send the CRDT from the server to the client
     socket.emit('crdt', crdt);
 
     socket.on('insert', (node) => {
-
-        console.log("Insert event received");
         crdt.insertPosition(node);
         documentCRDTs.set(docId, crdt);
         socket.to(docId).emit('insert', node); // broadcast the insert event to all other clients in the room
-        console.log("crdt after insert", crdt);
-
     });
 
     socket.on('delete', (node) => {
-        console.log("Delete event received", node);
         crdt.deletePosition(node);
         documentCRDTs.set(docId, crdt);
         socket.to(docId).emit('delete', node); // broadcast the delete event to all other clients in the room 
-        console.log("crdt after delete", crdt);
     });
-    // Listen for insert and delete events
 
+    // Listen for insert and delete events
     socket.on("disconnect", () => {
         console.log("user disconnected", socket.id);
 
         // Check if this is the last user in the room, if so call cleanup function from CRDT
-
-
     });
 });
-
-// export { app, io, server };
 
 // io.on:
 // This is used to set up a listener for a specific event on the Socket.IO server.

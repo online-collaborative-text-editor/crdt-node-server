@@ -182,42 +182,50 @@ io.on("connection", async (socket) => {
 
     // Join the document room
     socket.join(docId);
+    console.log(`User ${username} joined the document room ${docId}`);
 
     // If there's no CRDT for this document yet, create one.
     if (!documentCRDTs.has(docId)) {
         documentCRDTs.set(docId, new CRDT());
+        console.log("documentCRDTs", documentCRDTs);
         // After conncting to the db, handling this condition should be retrieving the CRDT from the database.
     }
 
     // Get the CRDT for this document.
     const crdt = documentCRDTs.get(docId);
+    console.log("crdt", crdt);
 
     // Send the CRDT from the server to the client
     socket.emit('crdt', crdt);
 
-    // Listen for insert and delete events
     socket.on('insert', (node) => {
+
+        console.log("Insert event received");
         crdt.insertPosition(node);
         documentCRDTs.set(docId, crdt);
         socket.to(docId).emit('insert', node); // broadcast the insert event to all other clients in the room
+        console.log("crdt after insert", crdt);
+
     });
 
     socket.on('delete', (node) => {
+        console.log("Delete event received", node);
         crdt.deletePosition(node);
         documentCRDTs.set(docId, crdt);
-        socket.to(docId).emit('delete', node); // broadcast the delete event to all other clients in the room
+        socket.to(docId).emit('delete', node); // broadcast the delete event to all other clients in the room 
+        console.log("crdt after delete", crdt);
     });
+    // Listen for insert and delete events
 
     socket.on("disconnect", () => {
         console.log("user disconnected", socket.id);
 
         // Check if this is the last user in the room, if so call cleanup function from CRDT
-        if (isLastUserInRoom(username)) {
-            crdt.cleanup();
-        }
+
+
     });
 });
-
+//TODO: CANNOT READ UDEFINED READING TOMBSTONE  WHEN I DELETE ALL THE TEXT
 // export { app, io, server };
 
 // io.on:

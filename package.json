@@ -5,12 +5,13 @@
   "main": "CRDT.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "start": "node server.js"
+    "start": "node server.js",
+    "predeploy": "npm install"
   },
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "express": "^4.19.2",
+    "express": "^4.17.1",
     "socket.io": "^4.7.5"
   }
 }

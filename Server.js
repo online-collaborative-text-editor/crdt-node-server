@@ -1,3 +1,28 @@
+// Import the mysql module
+const mysql = require('mysql2');
+
+// Create a connection object with the connection details
+const connection = mysql.createConnection({
+//   host: process.env.DB_HOST,
+//   user: process.env.DB_USER,
+//   password: process.env.DB_PASSWORD,
+//   database: process.env.DB_NAME
+    host: 'online-collaborative-text-editor-online-collaborative-text-edit.e.aivencloud.com',
+    user: 'avnadmin',
+    password: 'AVNS_Bu5lDfkduJXLsrEjthj',
+    database: 'defaultdb',
+    port: 23612,
+});
+
+// Connect to the database
+connection.connect(err => {
+  if (err) {
+    console.error('An error occurred while connecting to the DB');
+    throw err;
+  }
+  console.log('Connected!');
+});
+
 class Node {
     constructor(letter, position = -1, bold = false, italic = false, tombstone = false) {
         this.letter = letter;
@@ -7,6 +32,8 @@ class Node {
         this.tombstone = tombstone;
     }
 }
+
+
 
 class CRDT {
     constructor() {
@@ -47,6 +74,26 @@ class CRDT {
     cleanUp() {
         this.nodes = this.nodes.filter(node => !node.tombstone);
     }
+
+    save(docId) {
+        const query = 'UPDATE document SET data = ? WHERE id = ?';
+        const data = JSON.stringify(this.nodes);
+        const dataBuffer = Buffer.from(data);
+        db.query(query, [dataBuffer, docId], (error, results, fields) => {
+            if (error) throw error;
+            console.log('Saved CRDT to database.');
+        });
+    }
+
+    // load(docId) {
+    //     const query = 'SELECT data FROM document WHERE id = ?';
+    //     db.query(query, [docId], (error, results, fields) => {
+    //         if (error) throw error;
+    //         const dataBuffer = results[0].data;
+    //         const data = JSON.parse(dataBuffer.toString());
+    //         console.log('Loaded CRDT from database:', data);
+    //     });
+    // }
 
     ////////////////////////////////////////////////////// Helper Functions /////////////////////////////////////////////////////////////////////
 
@@ -102,6 +149,25 @@ const io = new Server(server, {
     },
 });
 
+
+
+app.post('/save', (req, res) => {
+    const crdt = new CRDT();
+    crdt.insertDisplayIndex(new Node('H', 5));
+    crdt.insertDisplayIndex(new Node('e', 6));
+    crdt.insertDisplayIndex(new Node('l', 7));
+    crdt.insertDisplayIndex(new Node('l', 8));
+    // const docId = req.body.docId;
+    // const crdt = documentCRDTs.get(docId);
+    const docId = "891e9e6f-5e25-4a3f-b610-145a91337c29";
+    if (crdt) {
+        crdt.save(docId);
+        res.status(200).send('Saved CRDT to database.');
+    } else {
+        res.status(404).send('Document not found.');
+    }
+});
+
 // This map stores a CRDT instance for each document.
 const documentCRDTs = new Map();
 
@@ -154,6 +220,10 @@ io.on("connection", async (socket) => {
 
         // Check if this is the last user in the room, if so call cleanup function from CRDT
     });
+
+    // socket.on('save', () => { 
+    //     crdt.save(docId);
+    // });
 });
 
 // io.on:

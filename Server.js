@@ -200,15 +200,32 @@ app.use(express.json());
 
 app.post('/save', (req, res) => {
     // const crdt = new CRDT();
-    // crdt.insertDisplayIndex(new Node('H', 5));
-    // crdt.insertDisplayIndex(new Node('e', 6));
-    // crdt.insertDisplayIndex(new Node('l', 7));
-    // crdt.insertDisplayIndex(new Node('l', 8));
-    
-    // const docId = req.body.docId;
-    // const crdt = documentCRDTs.get(docId);
+    // const node = new Node('H', 5);
+    // crdt.insertPosition(node);
+    // const node2 = new Node('e', 6);
+    // crdt.insertPosition(node2);
+    // const node3 = new Node('l', 7);
+    // crdt.insertPosition(node3);
+    // const node4 = new Node('l', 8);
+    // crdt.insertPosition(node4);
+    // const node5 = new Node('o', 9);
+    // crdt.insertPosition(node5);
+    // const node6 = new Node(' ', 10);
+    // crdt.insertPosition(node6);
+    // const node7 = new Node('W', 11);
+    // crdt.insertPosition(node7);
+    // const node8 = new Node('o', 12);
+    // crdt.insertPosition(node8);
+    // const node9 = new Node('r', 13);
+    // crdt.insertPosition(node9);
+    // const node10 = new Node('l', 14);
+    // crdt.insertPosition(node10);
+    // const node11 = new Node('d', 15);
+    // crdt.insertPosition(node11);
+    const docId = req.body.docId;
+    const crdt = documentCRDTs.get(docId);
     console.log('Saving CRDT to database');
-    const docId = "21089f0d-c7c9-4e8f-b42c-a38aa58623dc";
+    // const docId = "57e03623-9172-47bc-9218-94c66897e2de";
     if (crdt) {
         console.log('Saving CRDT to database');
         crdt.save(docId);

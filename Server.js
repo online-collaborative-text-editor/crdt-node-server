@@ -1,5 +1,5 @@
 // Import the mysql module
-const mysql = require('mysql');
+const mysql = require('mysql2');
 
 // Create a connection object with the connection details
 const connection = mysql.createConnection({
@@ -12,9 +12,6 @@ const connection = mysql.createConnection({
     password: 'AVNS_Bu5lDfkduJXLsrEjthj',
     database: 'defaultdb',
     port: 23612,
-    ssl: {
-        
-    }
 });
 
 // Connect to the database

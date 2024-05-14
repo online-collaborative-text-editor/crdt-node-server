@@ -8,6 +8,14 @@ class Node {
     }
 }
 
+const mysql = require('mysql');
+const db = mysql.createConnection({
+  host: 'localhost',
+  user: 'your_username',
+  password: 'your_password',
+  database: 'your_database'
+});
+
 class CRDT {
     constructor() {
         // this.nodes = [new Node(Number.MIN_VALUE, ''), new Node(Number.MAX_VALUE, '')];
@@ -47,6 +55,16 @@ class CRDT {
     cleanUp() {
         this.nodes = this.nodes.filter(node => !node.tombstone);
     }
+
+  save(docId) {
+    const query = 'UPDATE document SET data = ? WHERE id = ?';
+    const data = JSON.stringify(this.nodes);
+    db.query(query, [data, docId], (error, results, fields) => {
+      if (error) throw error;
+      console.log('Saved CRDT to database.');
+    });
+  }
+
 
     ////////////////////////////////////////////////////// Helper Functions /////////////////////////////////////////////////////////////////////
 
@@ -153,6 +171,10 @@ io.on("connection", async (socket) => {
         console.log("user disconnected", socket.id);
 
         // Check if this is the last user in the room, if so call cleanup function from CRDT
+    });
+
+    socket.on('save', () => { 
+        crdt.save(docId);
     });
 });
 

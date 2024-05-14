@@ -1,4 +1,22 @@
+const mysql = require('mysql2');
 
+// Create a connection object with the connection details
+const connection = mysql.createConnection({
+    host: 'online-collaborative-text-editor-online-collaborative-text-edit.e.aivencloud.com',
+    user: 'avnadmin',
+    password: 'AVNS_Bu5lDfkduJXLsrEjthj',
+    database: 'defaultdb',
+    port: 23612,
+});
+
+// Connect to the database
+connection.connect(err => {
+    if (err) {
+        console.error('An error occurred while connecting to the DB');
+        throw err;
+    }
+    console.log('Connected!');
+});
 
 class Node {
     constructor(letter, position = -1, bold = false, italic = false, tombstone = false) {
@@ -83,8 +101,8 @@ class CRDT {
         }
         return -1; // Invalid displayIndex
     }
-     //update the node to be bold 
-     updateBold(node) {
+    //update the node to be bold 
+    updateBold(node) {
         let arrayIndex = this.positionToArrayIndex(node.position);
         this.nodes[arrayIndex].bold = !(this.nodes[arrayIndex].bold);
     }
@@ -93,6 +111,17 @@ class CRDT {
         let arrayIndex = this.positionToArrayIndex(node.position);
         this.nodes[arrayIndex].italic = !(this.nodes[arrayIndex].italic);
     }
+
+    save(docId) {
+        const query = 'UPDATE documents SET data = ? WHERE id = ?';
+        const data = JSON.stringify(this.nodes);
+        const dataBuffer = Buffer.from(data);
+        connection.query(query, [dataBuffer, docId], (error, results, fields) => {
+            if (error) throw error;
+            console.log('Saved CRDT to database.');
+        });
+    }
+
 
 }
 
@@ -140,30 +169,24 @@ function testCRDT() {
     console.assert(crdt_server.nodes.length === 2, 'Server cleanUp failed');
 }
 
-
-
-
-
-
-
-
 const express = require("express");
 const http = require("http");
 
 const Server = require("socket.io").Server;
+const cors = require("cors");
 
 
 
 // Application and servers initialization
 const app = express();
 
+app.use(cors());
 const server = http.createServer(app);
 
 const port = 5000;
 
-server.listen(port, () => {
-    console.log("Server is Up on port " + port);
-});
+
+// Middleware to parse JSON bodies
 
 const io = new Server(server, {
     path: "/socket.io",
@@ -172,6 +195,28 @@ const io = new Server(server, {
     },
 });
 
+app.use(express.json());
+
+
+app.post('/save', (req, res) => {
+    // const crdt = new CRDT();
+    // crdt.insertDisplayIndex(new Node('H', 5));
+    // crdt.insertDisplayIndex(new Node('e', 6));
+    // crdt.insertDisplayIndex(new Node('l', 7));
+    // crdt.insertDisplayIndex(new Node('l', 8));
+    
+    // const docId = req.body.docId;
+    // const crdt = documentCRDTs.get(docId);
+    console.log('Saving CRDT to database');
+    const docId = "21089f0d-c7c9-4e8f-b42c-a38aa58623dc";
+    if (crdt) {
+        console.log('Saving CRDT to database');
+        crdt.save(docId);
+        res.status(200).send('Saved CRDT to database.');
+    } else {
+        res.status(404).send('Document not found.');
+    }
+});
 
 // This map stores a CRDT instance for each document.
 const documentCRDTs = new Map();
@@ -215,7 +260,7 @@ io.on("connection", async (socket) => {
         crdt.insertPosition(node);
         documentCRDTs.set(docId, crdt);
         socket.to(docId).emit('insert', node); // broadcast the insert event to all other clients in the room
-       // console.log("server crdt after insert", crdt);
+        // console.log("server crdt after insert", crdt);
 
     });
 
@@ -236,7 +281,7 @@ io.on("connection", async (socket) => {
         //console.log("crdt server after bold");
         crdt.updateBold(crdt.nodes[arrayIndex]);
         documentCRDTs.set(docId, crdt);
-       // console.log(crdt);
+        // console.log(crdt);
         const boldNode = crdt.nodes[arrayIndex];
         socket.to(docId).emit('bold', boldNode); // broadcast the bold event to all other clients in the room 
         //console.log("after emit ")
@@ -254,7 +299,7 @@ io.on("connection", async (socket) => {
         const italicNode = crdt.nodes[arrayIndex];
         //console.log(crdt);
         socket.to(docId).emit('italic', italicNode); // broadcast the italic event to all other clients in the room
-       
+
     });
 
     socket.on("disconnect", () => {
@@ -264,6 +309,10 @@ io.on("connection", async (socket) => {
 
 
     });
+});
+
+server.listen(3000, () => {
+    console.log("Server is Up on port " + port);
 });
 //TODO: CANNOT READ UDEFINED READING TOMBSTONE  WHEN I DELETE ALL THE TEXT
 // export { app, io, server };

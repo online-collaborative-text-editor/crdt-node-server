@@ -1,23 +1,23 @@
-const mysql = require('mysql2');
+
+const mysql = require("mysql2");
 
 // Create a connection object with the connection details
 const connection = mysql.createConnection({
-    host: 'online-collaborative-text-editor-online-collaborative-text-edit.e.aivencloud.com',
-    user: 'avnadmin',
-    password: 'AVNS_Bu5lDfkduJXLsrEjthj',
-    database: 'defaultdb',
+    host: "online-collaborative-text-editor-online-collaborative-text-edit.e.aivencloud.com",
+    user: "avnadmin",
+    password: "AVNS_Bu5lDfkduJXLsrEjthj",
+    database: "defaultdb",
     port: 23612,
 });
 
 // Connect to the database
-connection.connect(err => {
+connection.connect((err) => {
     if (err) {
-        console.error('An error occurred while connecting to the DB');
+        console.error("An error occurred while connecting to the DB");
         throw err;
     }
-    console.log('Connected!');
+    console.log("Connected!");
 });
-
 class Node {
     constructor(letter, position = -1, bold = false, italic = false, tombstone = false) {
         this.letter = letter;
@@ -113,17 +113,35 @@ class CRDT {
     }
 
     save(docId) {
-        const query = 'UPDATE documents SET data = ? WHERE id = ?';
+        const query = "UPDATE documents SET data = ? WHERE id = ?";
         const data = JSON.stringify(this.nodes);
+        console.log("data before save", data)
         const dataBuffer = Buffer.from(data);
         connection.query(query, [dataBuffer, docId], (error, results, fields) => {
             if (error) throw error;
-            console.log('Saved CRDT to database.');
+            console.log(dataBuffer);
+            console.log(docId);
+            console.log("Saved CRDT to database.");
         });
     }
+    deleteAllNodes() {
+        const length = this.nodes.length;
+        this.nodes = this.nodes.filter((node, index) => index === 0 || index === length - 1);
 
+    }
 
 }
+function convertFromJsonToCrdtArray(json) {
+    let nodes = JSON.parse(json);
+    let crdt = new CRDT();
+    crdt.nodes.pop();
+    crdt.nodes.pop();
+    for (let node of nodes) {
+        crdt.nodes.push(new Node(node.letter, node.position, node.bold, node.italic, node.tombstone));
+    }
+    return crdt;
+}
+
 
 function testCRDT() {
     // Create a new CRDT instance
@@ -169,24 +187,30 @@ function testCRDT() {
     console.assert(crdt_server.nodes.length === 2, 'Server cleanUp failed');
 }
 
+
+
+
+
+
+
+
 const express = require("express");
 const http = require("http");
 
 const Server = require("socket.io").Server;
-const cors = require("cors");
 
 
 
 // Application and servers initialization
 const app = express();
 
-app.use(cors());
 const server = http.createServer(app);
 
 const port = 5000;
 
-
-// Middleware to parse JSON bodies
+server.listen(port, () => {
+    console.log("Server is Up on port " + port);
+});
 
 const io = new Server(server, {
     path: "/socket.io",
@@ -195,45 +219,6 @@ const io = new Server(server, {
     },
 });
 
-app.use(express.json());
-
-
-app.post('/save', (req, res) => {
-    // const crdt = new CRDT();
-    // const node = new Node('H', 5);
-    // crdt.insertPosition(node);
-    // const node2 = new Node('e', 6);
-    // crdt.insertPosition(node2);
-    // const node3 = new Node('l', 7);
-    // crdt.insertPosition(node3);
-    // const node4 = new Node('l', 8);
-    // crdt.insertPosition(node4);
-    // const node5 = new Node('o', 9);
-    // crdt.insertPosition(node5);
-    // const node6 = new Node(' ', 10);
-    // crdt.insertPosition(node6);
-    // const node7 = new Node('W', 11);
-    // crdt.insertPosition(node7);
-    // const node8 = new Node('o', 12);
-    // crdt.insertPosition(node8);
-    // const node9 = new Node('r', 13);
-    // crdt.insertPosition(node9);
-    // const node10 = new Node('l', 14);
-    // crdt.insertPosition(node10);
-    // const node11 = new Node('d', 15);
-    // crdt.insertPosition(node11);
-    const docId = req.body.docId;
-    const crdt = documentCRDTs.get(docId);
-    console.log('Saving CRDT to database');
-    // const docId = "57e03623-9172-47bc-9218-94c66897e2de";
-    if (crdt) {
-        console.log('Saving CRDT to database');
-        crdt.save(docId);
-        res.status(200).send('Saved CRDT to database.');
-    } else {
-        res.status(404).send('Document not found.');
-    }
-});
 
 // This map stores a CRDT instance for each document.
 const documentCRDTs = new Map();
@@ -243,11 +228,47 @@ io.on("connection", async (socket) => {
 
     // Extract the username and document ID from the query parameter.
     let username, docId;
+    let crdt;
     if (socket.handshake.query.username && socket.handshake.query.docId) {
         username = socket.handshake.query.username;
         docId = socket.handshake.query.docId;
+
         console.log(`The provided username: ${username}`)
         console.log(`The provided document ID: ${docId}`)
+
+        crdt = documentCRDTs.get(docId)
+        console.log("documentCRDTs.get(docId)", documentCRDTs.get(docId));
+        if (!documentCRDTs.has(docId)) {
+            console.log("server didnt found crdt will get from db")
+
+            let docData = await new Promise((resolve, reject) => {
+                const query = "SELECT data FROM documents WHERE id = ?";
+                connection.query(query, [docId], (error, results, fields) => {
+                    if (error) {
+                        reject(error);
+                    }
+                    resolve(results[0]);
+                });
+            });
+            // console.log("docData from db :", docData);
+
+
+
+            if (docData && docData.data.length > 0) {
+                documentCRDTs.set(docId, convertFromJsonToCrdtArray(docData.data.toString()));
+                const data = convertFromJsonToCrdtArray(docData.data.toString())
+                console.log("server is sending data", data);
+                crdt = documentCRDTs.get(docId)
+                console.log("server is sending this  crdt", crdt);
+                socket.emit("crdt", crdt);
+            }
+            // } else {
+            //     documentCRDTs.set(docId, new CRDT());
+            // }
+            //console.log("documentCRDTs", documentCRDTs);
+            // After conncting to the db, handling this condition should be retrieving the CRDT from the database.
+
+        }
     } else {
         console.log("Username or document ID is not provided");
         socket.disconnect(true);
@@ -265,11 +286,11 @@ io.on("connection", async (socket) => {
     }
 
     // Get the CRDT for this document.
-    const crdt = documentCRDTs.get(docId);
+    crdt = documentCRDTs.get(docId);
     // console.log("crdt", crdt);
 
     // Send the CRDT from the server to the client
-    socket.emit('crdt', crdt);
+    // socket.emit('crdt', crdt);
 
     socket.on('insert', (node) => {
 
@@ -277,7 +298,7 @@ io.on("connection", async (socket) => {
         crdt.insertPosition(node);
         documentCRDTs.set(docId, crdt);
         socket.to(docId).emit('insert', node); // broadcast the insert event to all other clients in the room
-        // console.log("server crdt after insert", crdt);
+        console.log("server crdt after insert", crdt);
 
     });
 
@@ -289,6 +310,10 @@ io.on("connection", async (socket) => {
         //console.log("crdt server after delete", crdt);
     });
     // Listen for insert and delete events
+
+    socket.on("save", (docId) => {
+        crdt.save(docId);
+    });
 
     //listen for bold event
     socket.on('bold', (node) => {
@@ -321,15 +346,24 @@ io.on("connection", async (socket) => {
 
     socket.on("disconnect", () => {
         console.log("user disconnected", socket.id);
+        //if (io.sockets.adapter?.rooms?.get(docId)?.size === 0) {
+        // Save the CRDT to the database
+        crdt.cleanUp();
+        crdt.save(docId);
+        documentCRDTs.set(docId, null);
+        crdt.deleteAllNodes();
+
+        // Cleanup the CRDT
+        // Remove the CRDT from the map
+        documentCRDTs.delete(docId);
+        console.log("after disconnect crdt ", crdt);
+
+        // }
 
         // Check if this is the last user in the room, if so call cleanup function from CRDT
 
 
     });
-});
-
-server.listen(3000, () => {
-    console.log("Server is Up on port " + port);
 });
 //TODO: CANNOT READ UDEFINED READING TOMBSTONE  WHEN I DELETE ALL THE TEXT
 // export { app, io, server };
